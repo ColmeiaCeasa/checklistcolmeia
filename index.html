@@ -9,8 +9,8 @@
   <style>
     body { background-color: #f4f7f6; padding: 20px; }
     .card { border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-    .item-inspecao { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
-    .foto-input { display: none; margin-top: 10px; }
+    .item-inspecao { border-bottom: 1px solid #dee2e6; padding-bottom: 12px; margin-bottom: 12px; }
+    .foto-input { display: none; margin-top: 8px; }
     .obs-input { margin-top: 8px; font-size: 14px; background-color: #fcfcfc; }
     .resumo-revisao p { margin-bottom: 5px; }
     
@@ -101,7 +101,7 @@
 
   let dadosFormularioAtual = {}; 
   let modalRevisao; 
-  let mapaVeiculoPlaca = {}; // Guarda a relação entre Veículo e Placa
+  let mapaVeiculoPlaca = {}; 
 
   document.addEventListener("DOMContentLoaded", function() {
     document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
@@ -131,7 +131,6 @@
     preencherSelect('motorista', dados.motoristas);
     preencherSelect('veiculo', dados.veiculos);
     
-    // Constrói o mapa de Veículos -> Placas automaticamente
     dados.veiculos.forEach((veiculo, index) => {
       if (veiculo && dados.placas[index]) {
         mapaVeiculoPlaca[veiculo] = dados.placas[index];
@@ -141,17 +140,21 @@
     const listaItens = document.getElementById('listaItens');
     listaItens.innerHTML = '';
     dados.itens.forEach((item, index) => {
+      // NOVA INTERFACE COM BOTÕES AO LADO DO NOME
       listaItens.innerHTML += `
         <div class="item-inspecao" id="item_${index}">
-          <p class="fw-bold mb-1">${item}</p>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="status_${index}" value="OK" onchange="toggleFoto(${index}, false)">
-            <label class="form-check-label text-success">OK</label>
+          <div class="d-flex justify-content-between align-items-center">
+            <p class="fw-bold mb-0">${item}</p>
+            
+            <div class="btn-group" role="group">
+              <input type="radio" class="btn-check" name="status_${index}" id="btn-ok-${index}" value="OK" onchange="toggleFoto(${index}, false)" autocomplete="off">
+              <label class="btn btn-outline-success btn-sm fw-bold px-3" for="btn-ok-${index}">OK</label>
+
+              <input type="radio" class="btn-check" name="status_${index}" id="btn-nok-${index}" value="NÃO OK" onchange="toggleFoto(${index}, true)" autocomplete="off">
+              <label class="btn btn-outline-danger btn-sm fw-bold px-3" for="btn-nok-${index}">NÃO OK</label>
+            </div>
           </div>
-          <div class="form-check form-check-inline">
-            <input class="form-check-input" type="radio" name="status_${index}" value="NÃO OK" onchange="toggleFoto(${index}, true)">
-            <label class="form-check-label text-danger">NÃO OK</label>
-          </div>
+
           <input type="text" class="form-control obs-input" id="obs_${index}" placeholder="Adicionar observação (opcional)">
           <input type="file" class="form-control foto-input" id="foto_${index}" accept="image/*" capture="environment">
         </div>
@@ -159,7 +162,6 @@
     });
   }
 
-  // Função para preencher a placa automaticamente
   function preencherPlaca() {
     const veiculoSelecionado = document.getElementById('veiculo').value;
     const campoPlaca = document.getElementById('placa');
@@ -192,7 +194,6 @@
       return;
     }
 
-    // Formata a data de YYYY-MM-DD para DD/MM/YYYY
     const dataRevFormatada = dataRevisao.split('-').reverse().join('/');
 
     dadosFormularioAtual = {
@@ -200,7 +201,6 @@
       motorista: motorista,
       veiculo: veiculo,
       placa: placa,
-      // Truque: Junta o KM com a data de revisão para enviar para a planilha
       km: `${km_puro} (Revisão: ${dataRevFormatada})`, 
       km_puro: km_puro,
       dataRevFormatada: dataRevFormatada,
@@ -222,11 +222,11 @@
 
     itensDiv.forEach((div, index) => {
       const nomeItem = div.querySelector('p').innerText;
+      // O seletor de input rádio continua funcionando da mesma forma por trás dos panos
       const statusCheck = div.querySelector(`input[name="status_${index}"]:checked`);
       const obs = document.getElementById(`obs_${index}`).value.trim();
       
       if(statusCheck) {
-        // Truque: Anexa a observação ao Status para o Google Sheets salvar na mesma célula
         let statusPlanilha = statusCheck.value;
         if(obs !== "") statusPlanilha += ` (Obs: ${obs})`;
 
