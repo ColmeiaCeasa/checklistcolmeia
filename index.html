@@ -200,9 +200,10 @@
 
   function confirmarEnvio() {
     const btn = document.getElementById('btnConfirmar');
-    btn.innerText = 'Salvando dados... aguarde';
+    btn.innerText = 'Gerando PDF e Salvando...';
     btn.disabled = true;
 
+    // Envia os dados para a planilha
     fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       body: JSON.stringify(dadosFormularioAtual),
@@ -213,47 +214,51 @@
     })
     .then(response => {
       modalRevisao.hide();
-      gerarECompartilharPDF(); 
+      // Aguarda 500ms para o modal sumir totalmente da tela antes de "fotografar" o PDF
+      setTimeout(gerarECompartilharPDF, 500); 
     })
     .catch(erro => {
       console.error(erro);
       modalRevisao.hide();
-      gerarECompartilharPDF(); 
+      setTimeout(gerarECompartilharPDF, 500); 
     });
   }
 
   function gerarECompartilharPDF() {
-    alert("Dados salvos no sistema! Gerando PDF, aguarde um instante...");
-    
     const elemento = document.getElementById('conteudo-pdf');
     const placa = dadosFormularioAtual.placa || 'Veiculo';
     const opt = {
       margin:       10,
       filename:     `Checklist-${placa}.pdf`,
       image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2 },
+      html2canvas:  { scale: 2, useCORS: true }, // useCORS impede falhas silenciosas
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    // Gera o PDF e só limpa a tela DEPOIS que ele terminar
     html2pdf().set(opt).from(elemento).save().then(() => {
       
-      // Limpa os dados da tela e restaura o botão
+      // Só limpa a tela e restaura o botão DEPOIS do PDF baixar
       document.getElementById('checklistForm').reset();
       document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
       const btn = document.getElementById('btnConfirmar');
       btn.innerText = 'Confirmar e Salvar';
       btn.disabled = false;
 
-      // Chama o WhatsApp
+      // Aguarda 1 segundo e chama o WhatsApp com a mensagem de sucesso
       setTimeout(() => {
         const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
         const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
         
-        if(confirm("PDF gerado e baixado com sucesso!\nDeseja abrir o WhatsApp agora para enviar o arquivo?")) {
+        if(confirm("✅ Dados salvos e PDF baixado com sucesso!\n\nDeseja abrir o WhatsApp agora para anexar e enviar o arquivo?")) {
           window.open(zapUrl, '_blank');
         }
       }, 1000);
+
+    }).catch(erro => {
+      alert("Houve um erro ao gerar o PDF: " + erro);
+      const btn = document.getElementById('btnConfirmar');
+      btn.innerText = 'Confirmar e Salvar';
+      btn.disabled = false;
     });
   }
 </script>
