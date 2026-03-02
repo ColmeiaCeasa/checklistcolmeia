@@ -13,6 +13,15 @@
     .item-inspecao { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
     .foto-input { display: none; margin-top: 10px; }
     .resumo-revisao p { margin-bottom: 5px; }
+    /* Classe para organizar as fotos que vão para o PDF */
+    .foto-temporaria-pdf {
+      display: block;
+      max-width: 100%;
+      max-height: 250px;
+      margin-top: 10px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
   </style>
 </head>
 <body>
@@ -76,7 +85,9 @@
 </div>
 
 <script>
-  // URL do seu Google Apps Script
+  // =========================================================
+  // URL DO SEU GOOGLE APPS SCRIPT
+  // =========================================================
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9x_swESJO1GvXhXFJSUqBXl0lTQbua_r1ODTK3gLnXGQyTdjemk6zIr48YLVQhkQE/exec';
 
   let dadosFormularioAtual = {}; 
@@ -214,7 +225,7 @@
     })
     .then(response => {
       modalRevisao.hide();
-      // Aguarda 500ms para o modal sumir totalmente da tela antes de "fotografar" o PDF
+      // Aguarda o modal sumir totalmente da tela antes de fotografar o PDF
       setTimeout(gerarECompartilharPDF, 500); 
     })
     .catch(erro => {
@@ -225,41 +236,87 @@
   }
 
   function gerarECompartilharPDF() {
-    const elemento = document.getElementById('conteudo-pdf');
-    const placa = dadosFormularioAtual.placa || 'Veiculo';
-    const opt = {
-      margin:       10,
-      filename:     `Checklist-${placa}.pdf`,
-      image:        { type: 'jpeg', quality: 0.98 },
-      html2canvas:  { scale: 2, useCORS: true }, // useCORS impede falhas silenciosas
-      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-    };
+    const areaBotoes = document.querySelector('.d-grid');
+    const inputsFoto = document.querySelectorAll('.foto-input');
+    const btn = document.getElementById('btnConfirmar');
+    
+    // Esconde os botões temporariamente
+    areaBotoes.style.display = 'none';
+    
+    let promessasImagens = [];
 
-    html2pdf().set(opt).from(elemento).save().then(() => {
+    // Passa por todos os campos de foto
+    inputsFoto.forEach(input => {
+      // Esconde o campo "Escolher arquivo" para não sair no PDF
+      input.style.display = 'none';
+
+      if (input.files && input.files[0]) {
+        let promessa = new Promise((resolve, reject) => {
+          let reader = new FileReader();
+          reader.onload = function(e) {
+            let img = document.createElement('img');
+            img.src = e.target.result;
+            img.classList.add('foto-temporaria-pdf');
+            input.parentNode.appendChild(img);
+            resolve();
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(input.files[0]); 
+        });
+        promessasImagens.push(promessa);
+      }
+    });
+
+    // Espera todas as imagens renderizarem na tela
+    Promise.all(promessasImagens).then(() => {
       
-      // Só limpa a tela e restaura o botão DEPOIS do PDF baixar
-      document.getElementById('checklistForm').reset();
-      document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
-      const btn = document.getElementById('btnConfirmar');
-      btn.innerText = 'Confirmar e Salvar';
-      btn.disabled = false;
+      const elemento = document.getElementById('conteudo-pdf');
+      const placa = dadosFormularioAtual.placa || 'Veiculo';
+      const opt = {
+        margin:       10,
+        filename:     `Checklist-${placa}.pdf`,
+        image:        { type: 'jpeg', quality: 0.98 },
+        html2canvas:  { scale: 2, useCORS: true },
+        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
 
-      // Aguarda 1 segundo e chama o WhatsApp com a mensagem de sucesso
-      setTimeout(() => {
-        const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
-        const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
+      html2pdf().set(opt).from(elemento).save().then(() => {
         
-        if(confirm("✅ Dados salvos e PDF baixado com sucesso!\n\nDeseja abrir o WhatsApp agora para anexar e enviar o arquivo?")) {
-          window.open(zapUrl, '_blank');
-        }
-      }, 1000);
+        // Limpeza após gerar o PDF
+        document.querySelectorAll('.foto-temporaria-pdf').forEach(img => img.remove());
+        document.getElementById('checklistForm').reset();
+        document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
+        
+        areaBotoes.style.display = 'block'; 
+        btn.innerText = 'Confirmar e Salvar';
+        btn.disabled = false;
+
+        // Chama o WhatsApp
+        setTimeout(() => {
+          const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
+          const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
+          
+          if(confirm("✅ PDF com fotos gerado e baixado com sucesso!\n\nDeseja abrir o WhatsApp agora para anexar e enviar o arquivo?")) {
+            window.open(zapUrl, '_blank');
+          }
+        }, 1000);
+
+      }).catch(erro => {
+        alert("Houve um erro ao gerar o PDF: " + erro);
+        restaurarTela(areaBotoes, btn);
+      });
 
     }).catch(erro => {
-      alert("Houve um erro ao gerar o PDF: " + erro);
-      const btn = document.getElementById('btnConfirmar');
-      btn.innerText = 'Confirmar e Salvar';
-      btn.disabled = false;
+      alert("Erro ao processar as fotos: " + erro);
+      restaurarTela(areaBotoes, btn);
     });
+  }
+
+  function restaurarTela(areaBotoes, btn) {
+    document.querySelectorAll('.foto-temporaria-pdf').forEach(img => img.remove());
+    areaBotoes.style.display = 'block';
+    btn.innerText = 'Confirmar e Salvar';
+    btn.disabled = false;
   }
 </script>
 </body>
