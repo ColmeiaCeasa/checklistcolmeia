@@ -6,7 +6,6 @@
   <title>Check-List de Veículos</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     body { background-color: #f4f7f6; padding: 20px; }
     .card { border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
@@ -20,6 +19,13 @@
       margin-top: 10px;
       border-radius: 5px;
       border: 1px solid #ccc;
+    }
+    /* Estilos exclusivos para a hora de gerar o PDF nativo */
+    @media print {
+      body { background-color: white !important; padding: 0; }
+      .card { box-shadow: none !important; border: none !important; padding: 0 !important; }
+      .btn, #areaBotoesPrincipal, .modal { display: none !important; }
+      .foto-input { display: none !important; }
     }
   </style>
 </head>
@@ -59,7 +65,7 @@
         <p class="text-muted" id="statusCarregamento">Carregando itens da planilha...</p>
       </div>
 
-      <div class="d-grid gap-2 mt-4">
+      <div class="d-grid gap-2 mt-4" id="areaBotoesPrincipal">
         <button type="button" class="btn btn-warning btn-lg fw-bold text-dark" onclick="abrirRevisao()">Revisar e Enviar</button>
       </div>
     </form>
@@ -84,6 +90,7 @@
 </div>
 
 <script>
+  // A URL DA SUA PLANILHA CONTINUA A MESMA
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9x_swESJO1GvXhXFJSUqBXl0lTQbua_r1ODTK3gLnXGQyTdjemk6zIr48YLVQhkQE/exec';
 
   let dadosFormularioAtual = {}; 
@@ -132,7 +139,7 @@
             <input class="form-check-input" type="radio" name="status_${index}" value="NÃO OK" onchange="toggleFoto(${index}, true)">
             <label class="form-check-label text-danger">NÃO OK</label>
           </div>
-          <input type="file" class="form-control foto-input" id="foto_${index}" accept="image/jpeg, image/png" capture="environment">
+          <input type="file" class="form-control foto-input" id="foto_${index}" accept="image/*" capture="environment">
         </div>
       `;
     });
@@ -207,7 +214,7 @@
 
   function confirmarEnvio() {
     const btn = document.getElementById('btnConfirmar');
-    btn.innerText = 'Gerando PDF e Salvando...';
+    btn.innerText = 'Salvando e preparando PDF...';
     btn.disabled = true;
 
     fetch(APPS_SCRIPT_URL, {
@@ -221,10 +228,9 @@
     .then(response => {
       modalRevisao.hide();
       
-      // Ouve o evento do Modal fechar completamente antes de gerar o PDF
+      // Espera o modal fechar para gerar o PDF nativo
       document.getElementById('modalRevisao').addEventListener('hidden.bs.modal', function onModalHidden() {
         gerarECompartilharPDF();
-        // Remove o evento para não disparar duas vezes no futuro
         document.getElementById('modalRevisao').removeEventListener('hidden.bs.modal', onModalHidden);
       });
     })
@@ -236,92 +242,49 @@
   }
 
   function gerarECompartilharPDF() {
-    // Sobe a tela para o topo para evitar que o PDF corte no meio
-    window.scrollTo(0, 0);
-
-    const areaBotoes = document.querySelector('.d-grid');
+    const areaBotoes = document.getElementById('areaBotoesPrincipal');
     const inputsFoto = document.querySelectorAll('.foto-input');
     const btn = document.getElementById('btnConfirmar');
     
-    areaBotoes.style.display = 'none';
-    
-    let promessasImagens = [];
-
+    // 1. Mostrar as fotos na tela da forma nativa do aparelho
     inputsFoto.forEach(input => {
-      input.style.display = 'none';
-
       if (input.files && input.files[0]) {
-        let promessa = new Promise((resolve) => {
-          let reader = new FileReader();
-          
-          reader.onload = function(e) {
-            let dataUrl = e.target.result;
-            
-            // TRUQUE DE MESTRE: Força a assinatura do arquivo ser sempre image/jpeg
-            // Isso engana a biblioteca do PDF e evita o erro "Unsupported image type"
-            dataUrl = dataUrl.replace(/^data:[^;]+;/, 'data:image/jpeg;');
-            
-            let imgDOM = document.createElement('img');
-            imgDOM.src = dataUrl;
-            imgDOM.classList.add('foto-temporaria-pdf');
-            input.parentNode.appendChild(imgDOM);
-            
-            // Resolve a promessa de qualquer jeito para não travar o sistema
-            imgDOM.onload = resolve;
-            imgDOM.onerror = resolve;
-          };
-          
-          reader.onerror = resolve;
-          reader.readAsDataURL(input.files[0]); 
-        });
-        promessasImagens.push(promessa);
+        // Esconde o botão de arquivo original para o PDF ficar mais limpo
+        input.style.display = 'none'; 
+        
+        let imgDOM = document.createElement('img');
+        // Puxa a imagem diretamente do aparelho sem conversão pesada
+        imgDOM.src = URL.createObjectURL(input.files[0]); 
+        imgDOM.classList.add('foto-temporaria-pdf');
+        input.parentNode.appendChild(imgDOM);
       }
     });
 
-    Promise.all(promessasImagens).then(() => {
+    // 2. Aguarda um curto tempo para as imagens carregarem visualmente e chama a impressão do sistema
+    setTimeout(() => {
       
-      const elemento = document.getElementById('conteudo-pdf');
-      const placa = dadosFormularioAtual.placa || 'Veiculo';
-      const opt = {
-        margin:       10,
-        filename:     `Checklist-${placa}.pdf`,
-        image:        { type: 'jpeg', quality: 0.98 },
-        html2canvas:  { scale: 2, useCORS: true },
-        jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-      };
+      // Abre a tela nativa de impressão/Salvar como PDF do celular
+      window.print(); 
 
-      html2pdf().set(opt).from(elemento).save().then(() => {
+      // 3. Limpeza e restauração da tela após a janela do PDF ser fechada
+      document.querySelectorAll('.foto-temporaria-pdf').forEach(img => img.remove());
+      document.getElementById('checklistForm').reset();
+      document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
+      
+      btn.innerText = 'Confirmar e Salvar';
+      btn.disabled = false;
+
+      // 4. Pergunta do WhatsApp
+      setTimeout(() => {
+        const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
+        const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
         
-        document.querySelectorAll('.foto-temporaria-pdf').forEach(img => img.remove());
-        document.getElementById('checklistForm').reset();
-        document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
-        
-        areaBotoes.style.display = 'block'; 
-        btn.innerText = 'Confirmar e Salvar';
-        btn.disabled = false;
+        if(confirm("✅ Se você já salvou o PDF no aparelho, deseja abrir o WhatsApp agora para anexar e enviar o relatório?")) {
+          window.open(zapUrl, '_blank');
+        }
+      }, 1000);
 
-        setTimeout(() => {
-          const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
-          const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
-          
-          if(confirm("✅ PDF com fotos gerado e baixado com sucesso!\n\nDeseja abrir o WhatsApp agora para anexar e enviar o arquivo?")) {
-            window.open(zapUrl, '_blank');
-          }
-        }, 1000);
-
-      }).catch(erro => {
-        alert("Houve um erro ao salvar o arquivo: " + erro);
-        restaurarTela(areaBotoes, btn);
-      });
-
-    });
-  }
-
-  function restaurarTela(areaBotoes, btn) {
-    document.querySelectorAll('.foto-temporaria-pdf').forEach(img => img.remove());
-    areaBotoes.style.display = 'block';
-    btn.innerText = 'Confirmar e Salvar';
-    btn.disabled = false;
+    }, 800);
   }
 </script>
 </body>
