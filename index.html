@@ -66,7 +66,7 @@
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body resumo-revisao" id="conteudoRevisao">
-        </div>
+      </div>
       <div class="modal-footer d-flex justify-content-between">
         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Voltar e Editar</button>
         <button type="button" class="btn btn-success fw-bold" onclick="confirmarEnvio()" id="btnConfirmar">Confirmar e Salvar</button>
@@ -76,13 +76,11 @@
 </div>
 
 <script>
-  // =========================================================
-  // COLOQUE AQUI A URL GERADA NO GOOGLE APPS SCRIPT
-  // =========================================================
+  // URL do seu Google Apps Script
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9x_swESJO1GvXhXFJSUqBXl0lTQbua_r1ODTK3gLnXGQyTdjemk6zIr48YLVQhkQE/exec';
 
-  let dadosFormularioAtual = {}; // Vai guardar os dados para o envio final
-  let modalRevisao; // Variável para controlar o modal
+  let dadosFormularioAtual = {}; 
+  let modalRevisao; 
 
   document.addEventListener("DOMContentLoaded", function() {
     document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
@@ -143,7 +141,6 @@
     }
   }
 
-  // 1. Abre a tela de revisão preenchendo o que foi selecionado
   function abrirRevisao() {
     const motorista = document.getElementById('motorista').value;
     const veiculo = document.getElementById('veiculo').value;
@@ -197,12 +194,10 @@
       return;
     }
 
-    // Joga o HTML gerado para dentro do Modal e abre ele
     document.getElementById('conteudoRevisao').innerHTML = htmlRevisao;
     modalRevisao.show();
   }
 
-  // 2. Confirma o envio para o Google Sheets e gera o PDF
   function confirmarEnvio() {
     const btn = document.getElementById('btnConfirmar');
     btn.innerText = 'Salvando dados... aguarde';
@@ -217,27 +212,18 @@
       }
     })
     .then(response => {
-      // Sucesso no envio
-      modalRevisao.hide();
-      gerarECompartilharPDF(); // Chama a função do PDF automaticamente
-    })
-    .catch(erro => {
-      // O Google Apps script as vezes acusa erro de CORS no Fetch mesmo salvando os dados.
-      console.error(erro);
       modalRevisao.hide();
       gerarECompartilharPDF(); 
     })
-    .finally(() => {
-      btn.innerText = 'Confirmar e Salvar';
-      btn.disabled = false;
-      document.getElementById('checklistForm').reset();
-      document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
+    .catch(erro => {
+      console.error(erro);
+      modalRevisao.hide();
+      gerarECompartilharPDF(); 
     });
   }
 
-  // 3. Gera o PDF e prepara para o WhatsApp
   function gerarECompartilharPDF() {
-    alert("Dados salvos no sistema! Gerando PDF para o WhatsApp...");
+    alert("Dados salvos no sistema! Gerando PDF, aguarde um instante...");
     
     const elemento = document.getElementById('conteudo-pdf');
     const placa = dadosFormularioAtual.placa || 'Veiculo';
@@ -249,17 +235,25 @@
       jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
 
-    // Gera o PDF e força o download
+    // Gera o PDF e só limpa a tela DEPOIS que ele terminar
     html2pdf().set(opt).from(elemento).save().then(() => {
-      // Após baixar, pergunta se o usuário quer abrir o WhatsApp
+      
+      // Limpa os dados da tela e restaura o botão
+      document.getElementById('checklistForm').reset();
+      document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
+      const btn = document.getElementById('btnConfirmar');
+      btn.innerText = 'Confirmar e Salvar';
+      btn.disabled = false;
+
+      // Chama o WhatsApp
       setTimeout(() => {
         const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
         const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
         
-        if(confirm("PDF baixado no seu celular/computador!\nDeseja abrir o WhatsApp agora para enviar o arquivo?")) {
+        if(confirm("PDF gerado e baixado com sucesso!\nDeseja abrir o WhatsApp agora para enviar o arquivo?")) {
           window.open(zapUrl, '_blank');
         }
-      }, 1500);
+      }, 1000);
     });
   }
 </script>
