@@ -13,7 +13,6 @@
     .item-inspecao { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
     .foto-input { display: none; margin-top: 10px; }
     .resumo-revisao p { margin-bottom: 5px; }
-    /* Classe para as fotos geradas no PDF */
     .foto-temporaria-pdf {
       display: block;
       max-width: 100%;
@@ -85,7 +84,6 @@
 </div>
 
 <script>
-  // URL DO SEU GOOGLE APPS SCRIPT
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9x_swESJO1GvXhXFJSUqBXl0lTQbua_r1ODTK3gLnXGQyTdjemk6zIr48YLVQhkQE/exec';
 
   let dadosFormularioAtual = {}; 
@@ -134,7 +132,7 @@
             <input class="form-check-input" type="radio" name="status_${index}" value="NÃO OK" onchange="toggleFoto(${index}, true)">
             <label class="form-check-label text-danger">NÃO OK</label>
           </div>
-          <input type="file" class="form-control foto-input" id="foto_${index}" accept="image/jpeg, image/png" capture="environment">
+          <input type="file" class="form-control foto-input" id="foto_${index}" accept="image/*" capture="environment">
         </div>
       `;
     });
@@ -209,7 +207,7 @@
 
   function confirmarEnvio() {
     const btn = document.getElementById('btnConfirmar');
-    btn.innerText = 'Gerando PDF e Salvando...';
+    btn.innerText = 'Processando e Salvando...';
     btn.disabled = true;
 
     fetch(APPS_SCRIPT_URL, {
@@ -246,21 +244,49 @@
       if (input.files && input.files[0]) {
         let promessa = new Promise((resolve, reject) => {
           let reader = new FileReader();
+          
           reader.onload = function(e) {
-            let img = document.createElement('img');
+            let imgObj = new Image();
             
-            // CORREÇÃO 2: Só libera a promessa quando a imagem realmente terminar de carregar na tela
-            img.onload = function() {
-              resolve();
+            imgObj.onload = function() {
+              // TRUQUE DO CANVAS: Desenha a imagem para forçar um JPEG limpo e leve
+              let canvas = document.createElement('canvas');
+              let ctx = canvas.getContext('2d');
+              
+              // Reduz o tamanho máximo para 800px para não travar a memória do celular
+              let MAX_WIDTH = 800;
+              let scaleSize = MAX_WIDTH / imgObj.width;
+              
+              if(imgObj.width > MAX_WIDTH) {
+                canvas.width = MAX_WIDTH;
+                canvas.height = imgObj.height * scaleSize;
+              } else {
+                canvas.width = imgObj.width;
+                canvas.height = imgObj.height;
+              }
+              
+              ctx.drawImage(imgObj, 0, 0, canvas.width, canvas.height);
+              
+              // Extrai um JPEG padrão de web garantido
+              let imagemLimpaUrl = canvas.toDataURL('image/jpeg', 0.8);
+              
+              // Cria a imagem na tela para o PDF ler
+              let imgDOM = document.createElement('img');
+              imgDOM.src = imagemLimpaUrl;
+              imgDOM.classList.add('foto-temporaria-pdf');
+              input.parentNode.appendChild(imgDOM);
+              
+              // Dá um tempinho mínimo para o HTML atualizar
+              setTimeout(resolve, 100);
             };
-            img.onerror = function() {
-              reject("Falha ao carregar a imagem.");
+            
+            imgObj.onerror = function() {
+              reject("Falha ao desenhar a imagem.");
             };
-
-            img.src = e.target.result;
-            img.classList.add('foto-temporaria-pdf');
-            input.parentNode.appendChild(img);
+            
+            imgObj.src = e.target.result;
           };
+          
           reader.onerror = reject;
           reader.readAsDataURL(input.files[0]); 
         });
@@ -268,7 +294,7 @@
       }
     });
 
-    // Espera todas as imagens renderizarem na tela
+    // Espera todas as imagens serem processadas pelo Canvas
     Promise.all(promessasImagens).then(() => {
       
       const elemento = document.getElementById('conteudo-pdf');
