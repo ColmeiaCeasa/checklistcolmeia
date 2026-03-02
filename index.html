@@ -11,13 +11,12 @@
     .card { border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
     .item-inspecao { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
     .foto-input { display: none; margin-top: 10px; }
+    .obs-input { margin-top: 8px; font-size: 14px; background-color: #fcfcfc; }
     .resumo-revisao p { margin-bottom: 5px; }
     
-    /* Configuração rigorosa para o PDF do celular */
     @media print {
       body { background-color: white !important; padding: 0; }
       .card { box-shadow: none !important; border: none !important; padding: 0 !important; }
-      /* Esconde o formulário com defeito e mostra a área de texto puro */
       #checklistForm, #tituloForm, #logoForm, #areaBotoesPrincipal, .modal { display: none !important; }
       #areaImpressao { display: block !important; }
       .d-print-none { display: none !important; }
@@ -48,15 +47,19 @@
         </div>
         <div class="col-md-6 mb-3">
           <label class="form-label fw-bold">Modelo do Veículo</label>
-          <select id="veiculo" class="form-select" required><option value="">Carregando...</option></select>
+          <select id="veiculo" class="form-select" onchange="preencherPlaca()" required><option value="">Carregando...</option></select>
         </div>
-        <div class="col-md-6 mb-3">
+        <div class="col-md-4 mb-3">
           <label class="form-label fw-bold">Placa</label>
-          <select id="placa" class="form-select" required><option value="">Carregando...</option></select>
+          <input type="text" id="placa" class="form-control" placeholder="Automático ou digite..." required>
         </div>
-        <div class="col-md-6 mb-3">
+        <div class="col-md-4 mb-3">
           <label class="form-label fw-bold">Kilometragem Atual</label>
           <input type="number" id="km" class="form-control" placeholder="Ex: 15000" required>
+        </div>
+        <div class="col-md-4 mb-3">
+          <label class="form-label fw-bold">Data da Última Revisão</label>
+          <input type="date" id="dataRevisao" class="form-control" required>
         </div>
       </div>
 
@@ -93,11 +96,12 @@
 </div>
 
 <script>
-  // URL DA SUA PLANILHA NO APPS SCRIPT
+  // A URL DA SUA PLANILHA CONTINUA A MESMA
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9x_swESJO1GvXhXFJSUqBXl0lTQbua_r1ODTK3gLnXGQyTdjemk6zIr48YLVQhkQE/exec';
 
   let dadosFormularioAtual = {}; 
   let modalRevisao; 
+  let mapaVeiculoPlaca = {}; // Guarda a relação entre Veículo e Placa
 
   document.addEventListener("DOMContentLoaded", function() {
     document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
@@ -126,7 +130,13 @@
 
     preencherSelect('motorista', dados.motoristas);
     preencherSelect('veiculo', dados.veiculos);
-    preencherSelect('placa', dados.placas);
+    
+    // Constrói o mapa de Veículos -> Placas automaticamente
+    dados.veiculos.forEach((veiculo, index) => {
+      if (veiculo && dados.placas[index]) {
+        mapaVeiculoPlaca[veiculo] = dados.placas[index];
+      }
+    });
 
     const listaItens = document.getElementById('listaItens');
     listaItens.innerHTML = '';
@@ -142,10 +152,22 @@
             <input class="form-check-input" type="radio" name="status_${index}" value="NÃO OK" onchange="toggleFoto(${index}, true)">
             <label class="form-check-label text-danger">NÃO OK</label>
           </div>
+          <input type="text" class="form-control obs-input" id="obs_${index}" placeholder="Adicionar observação (opcional)">
           <input type="file" class="form-control foto-input" id="foto_${index}" accept="image/*" capture="environment">
         </div>
       `;
     });
+  }
+
+  // Função para preencher a placa automaticamente
+  function preencherPlaca() {
+    const veiculoSelecionado = document.getElementById('veiculo').value;
+    const campoPlaca = document.getElementById('placa');
+    if (mapaVeiculoPlaca[veiculoSelecionado]) {
+      campoPlaca.value = mapaVeiculoPlaca[veiculoSelecionado];
+    } else {
+      campoPlaca.value = ''; 
+    }
   }
 
   function toggleFoto(index, isNaoOk) {
@@ -162,19 +184,26 @@
     const motorista = document.getElementById('motorista').value;
     const veiculo = document.getElementById('veiculo').value;
     const placa = document.getElementById('placa').value;
-    const km = document.getElementById('km').value;
+    const km_puro = document.getElementById('km').value;
+    const dataRevisao = document.getElementById('dataRevisao').value;
 
-    if(!motorista || !veiculo || !placa || !km) {
-      alert("Por favor, preencha todos os dados principais do veículo e motorista!");
+    if(!motorista || !veiculo || !placa || !km_puro || !dataRevisao) {
+      alert("Por favor, preencha todos os dados principais (incluindo KM e Data da Revisão)!");
       return;
     }
+
+    // Formata a data de YYYY-MM-DD para DD/MM/YYYY
+    const dataRevFormatada = dataRevisao.split('-').reverse().join('/');
 
     dadosFormularioAtual = {
       dataHora: document.getElementById('dataHora').value,
       motorista: motorista,
       veiculo: veiculo,
       placa: placa,
-      km: km,
+      // Truque: Junta o KM com a data de revisão para enviar para a planilha
+      km: `${km_puro} (Revisão: ${dataRevFormatada})`, 
+      km_puro: km_puro,
+      dataRevFormatada: dataRevFormatada,
       respostas: []
     };
 
@@ -182,7 +211,7 @@
       <p><strong>Data/Hora:</strong> ${dadosFormularioAtual.dataHora}</p>
       <p><strong>Motorista:</strong> ${dadosFormularioAtual.motorista}</p>
       <p><strong>Veículo:</strong> ${dadosFormularioAtual.veiculo} (Placa: ${dadosFormularioAtual.placa})</p>
-      <p><strong>KM:</strong> ${dadosFormularioAtual.km}</p>
+      <p><strong>KM:</strong> ${dadosFormularioAtual.km_puro} &nbsp;|&nbsp; <strong>Última Rev:</strong> ${dadosFormularioAtual.dataRevFormatada}</p>
       <hr>
       <h6 class="fw-bold">Itens Inspecionados:</h6>
       <ul class="list-group list-group-flush mb-3">
@@ -194,11 +223,29 @@
     itensDiv.forEach((div, index) => {
       const nomeItem = div.querySelector('p').innerText;
       const statusCheck = div.querySelector(`input[name="status_${index}"]:checked`);
+      const obs = document.getElementById(`obs_${index}`).value.trim();
       
       if(statusCheck) {
-        dadosFormularioAtual.respostas.push({ item: nomeItem, status: statusCheck.value });
+        // Truque: Anexa a observação ao Status para o Google Sheets salvar na mesma célula
+        let statusPlanilha = statusCheck.value;
+        if(obs !== "") statusPlanilha += ` (Obs: ${obs})`;
+
+        dadosFormularioAtual.respostas.push({ 
+          item: nomeItem, 
+          status: statusPlanilha, 
+          status_puro: statusCheck.value,
+          obs_pura: obs 
+        });
+        
         let cor = statusCheck.value === 'OK' ? 'text-success' : 'text-danger fw-bold';
-        htmlRevisao += `<li class="list-group-item py-1">${nomeItem}: <span class="${cor}">${statusCheck.value}</span></li>`;
+        
+        let htmlItem = `<li class="list-group-item py-1">${nomeItem}: <span class="${cor}">${statusCheck.value}</span>`;
+        if (obs !== "") {
+          htmlItem += `<br><small class="text-muted fst-italic">Obs: ${obs}</small>`;
+        }
+        htmlItem += `</li>`;
+        
+        htmlRevisao += htmlItem;
       } else {
         todosRespondidos = false;
       }
@@ -230,7 +277,6 @@
     })
     .then(response => {
       modalRevisao.hide();
-      
       document.getElementById('modalRevisao').addEventListener('hidden.bs.modal', function onModalHidden() {
         gerarTelaRelatorio();
         document.getElementById('modalRevisao').removeEventListener('hidden.bs.modal', onModalHidden);
@@ -249,7 +295,6 @@
     const titulo = document.getElementById('tituloForm');
     const logo = document.getElementById('logoForm');
     
-    // 1. Monta o visual do PDF incluindo a logo no cabeçalho
     let htmlImpressao = `
       <div style="text-align: center; margin-bottom: 15px;">
         <img src="logo.png" alt="Logo da Empresa" style="max-height: 80px; width: auto;" onerror="this.style.display='none'">
@@ -277,10 +322,16 @@
       if (input.files && input.files[0]) {
         qtdeFotos++;
         const nomeItem = document.querySelectorAll('.item-inspecao')[index].querySelector('p').innerText;
+        const obsItem = document.getElementById(`obs_${index}`).value.trim();
         
         let divFoto = document.createElement('div');
         divFoto.style.marginBottom = '20px';
-        divFoto.innerHTML = `<p style="font-weight: bold; margin-bottom: 5px; color: #dc3545;">Item: ${nomeItem}</p>`;
+        
+        let infoFoto = `<p style="font-weight: bold; margin-bottom: 2px; color: #dc3545;">Item: ${nomeItem}</p>`;
+        if(obsItem !== "") {
+          infoFoto += `<p style="font-size: 14px; margin-bottom: 5px; color: #555;">Obs: ${obsItem}</p>`;
+        }
+        divFoto.innerHTML = infoFoto;
         
         let imgDOM = document.createElement('img');
         imgDOM.src = URL.createObjectURL(input.files[0]);
@@ -298,10 +349,9 @@
       containerFotos.innerHTML = "<p>Nenhuma foto anexada neste relatório.</p>";
     }
 
-    // Esconde a tela inicial e mostra o relatório
     form.style.display = 'none';
     titulo.style.display = 'none';
-    logo.style.display = 'none'; // Esconde a logo da tela inicial para não duplicar com a do relatório
+    logo.style.display = 'none'; 
     areaImpressao.style.display = 'block';
 
     setTimeout(() => {
@@ -310,7 +360,7 @@
   }
 
   function abrirWhatsApp() {
-    const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
+    const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}\n*Última Rev:* ${dadosFormularioAtual.dataRevFormatada}`;
     const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
     window.open(zapUrl, '_blank');
   }
@@ -321,7 +371,7 @@
     
     document.getElementById('checklistForm').style.display = 'block';
     document.getElementById('tituloForm').style.display = 'block';
-    document.getElementById('logoForm').style.display = 'block'; // Volta a logo original
+    document.getElementById('logoForm').style.display = 'block'; 
     
     document.getElementById('checklistForm').reset();
     document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
