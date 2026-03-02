@@ -13,7 +13,7 @@
     .item-inspecao { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
     .foto-input { display: none; margin-top: 10px; }
     .resumo-revisao p { margin-bottom: 5px; }
-    /* Classe para organizar as fotos que vão para o PDF */
+    /* Classe para as fotos geradas no PDF */
     .foto-temporaria-pdf {
       display: block;
       max-width: 100%;
@@ -85,9 +85,7 @@
 </div>
 
 <script>
-  // =========================================================
   // URL DO SEU GOOGLE APPS SCRIPT
-  // =========================================================
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9x_swESJO1GvXhXFJSUqBXl0lTQbua_r1ODTK3gLnXGQyTdjemk6zIr48YLVQhkQE/exec';
 
   let dadosFormularioAtual = {}; 
@@ -136,7 +134,7 @@
             <input class="form-check-input" type="radio" name="status_${index}" value="NÃO OK" onchange="toggleFoto(${index}, true)">
             <label class="form-check-label text-danger">NÃO OK</label>
           </div>
-          <input type="file" class="form-control foto-input" id="foto_${index}" accept="image/*" capture="environment">
+          <input type="file" class="form-control foto-input" id="foto_${index}" accept="image/jpeg, image/png" capture="environment">
         </div>
       `;
     });
@@ -214,7 +212,6 @@
     btn.innerText = 'Gerando PDF e Salvando...';
     btn.disabled = true;
 
-    // Envia os dados para a planilha
     fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       body: JSON.stringify(dadosFormularioAtual),
@@ -225,7 +222,6 @@
     })
     .then(response => {
       modalRevisao.hide();
-      // Aguarda o modal sumir totalmente da tela antes de fotografar o PDF
       setTimeout(gerarECompartilharPDF, 500); 
     })
     .catch(erro => {
@@ -240,14 +236,11 @@
     const inputsFoto = document.querySelectorAll('.foto-input');
     const btn = document.getElementById('btnConfirmar');
     
-    // Esconde os botões temporariamente
     areaBotoes.style.display = 'none';
     
     let promessasImagens = [];
 
-    // Passa por todos os campos de foto
     inputsFoto.forEach(input => {
-      // Esconde o campo "Escolher arquivo" para não sair no PDF
       input.style.display = 'none';
 
       if (input.files && input.files[0]) {
@@ -255,10 +248,18 @@
           let reader = new FileReader();
           reader.onload = function(e) {
             let img = document.createElement('img');
+            
+            // CORREÇÃO 2: Só libera a promessa quando a imagem realmente terminar de carregar na tela
+            img.onload = function() {
+              resolve();
+            };
+            img.onerror = function() {
+              reject("Falha ao carregar a imagem.");
+            };
+
             img.src = e.target.result;
             img.classList.add('foto-temporaria-pdf');
             input.parentNode.appendChild(img);
-            resolve();
           };
           reader.onerror = reject;
           reader.readAsDataURL(input.files[0]); 
@@ -282,7 +283,6 @@
 
       html2pdf().set(opt).from(elemento).save().then(() => {
         
-        // Limpeza após gerar o PDF
         document.querySelectorAll('.foto-temporaria-pdf').forEach(img => img.remove());
         document.getElementById('checklistForm').reset();
         document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
@@ -291,7 +291,6 @@
         btn.innerText = 'Confirmar e Salvar';
         btn.disabled = false;
 
-        // Chama o WhatsApp
         setTimeout(() => {
           const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
           const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
