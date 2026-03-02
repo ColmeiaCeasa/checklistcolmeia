@@ -12,20 +12,14 @@
     .item-inspecao { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
     .foto-input { display: none; margin-top: 10px; }
     .resumo-revisao p { margin-bottom: 5px; }
-    .foto-temporaria-pdf {
-      display: block;
-      max-width: 100%;
-      max-height: 250px;
-      margin-top: 10px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-    }
-    /* Estilos exclusivos para a hora de gerar o PDF nativo */
+    
+    /* Configuração rigorosa para o PDF do celular */
     @media print {
       body { background-color: white !important; padding: 0; }
       .card { box-shadow: none !important; border: none !important; padding: 0 !important; }
-      .btn, #areaBotoesPrincipal, .modal { display: none !important; }
-      .foto-input { display: none !important; }
+      /* Esconde o formulário com defeito e mostra a área de texto puro */
+      #checklistForm, #tituloForm, #areaBotoesPrincipal, .modal { display: none !important; }
+      #areaImpressao { display: block !important; }
     }
   </style>
 </head>
@@ -33,7 +27,7 @@
 
 <div class="container" id="conteudo-pdf">
   <div class="card p-4">
-    <h3 class="text-center mb-4 text-primary">CHECK-LIST DIÁRIO</h3>
+    <h3 class="text-center mb-4 text-primary" id="tituloForm">CHECK-LIST DIÁRIO</h3>
     
     <form id="checklistForm">
       <div class="mb-3">
@@ -69,6 +63,9 @@
         <button type="button" class="btn btn-warning btn-lg fw-bold text-dark" onclick="abrirRevisao()">Revisar e Enviar</button>
       </div>
     </form>
+
+    <div id="areaImpressao" style="display: none;"></div>
+
   </div>
 </div>
 
@@ -90,7 +87,7 @@
 </div>
 
 <script>
-  // A URL DA SUA PLANILHA CONTINUA A MESMA
+  // URL DA SUA PLANILHA NO APPS SCRIPT
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9x_swESJO1GvXhXFJSUqBXl0lTQbua_r1ODTK3gLnXGQyTdjemk6zIr48YLVQhkQE/exec';
 
   let dadosFormularioAtual = {}; 
@@ -181,7 +178,7 @@
       <p><strong>Veículo:</strong> ${dadosFormularioAtual.veiculo} (Placa: ${dadosFormularioAtual.placa})</p>
       <p><strong>KM:</strong> ${dadosFormularioAtual.km}</p>
       <hr>
-      <h6 class="fw-bold">Itens:</h6>
+      <h6 class="fw-bold">Itens Inspecionados:</h6>
       <ul class="list-group list-group-flush mb-3">
     `;
 
@@ -228,7 +225,7 @@
     .then(response => {
       modalRevisao.hide();
       
-      // Espera o modal fechar para gerar o PDF nativo
+      // Espera o modal sumir para montar o PDF garantido
       document.getElementById('modalRevisao').addEventListener('hidden.bs.modal', function onModalHidden() {
         gerarECompartilharPDF();
         document.getElementById('modalRevisao').removeEventListener('hidden.bs.modal', onModalHidden);
@@ -242,39 +239,76 @@
   }
 
   function gerarECompartilharPDF() {
-    const areaBotoes = document.getElementById('areaBotoesPrincipal');
-    const inputsFoto = document.querySelectorAll('.foto-input');
-    const btn = document.getElementById('btnConfirmar');
+    const areaImpressao = document.getElementById('areaImpressao');
+    const form = document.getElementById('checklistForm');
+    const titulo = document.getElementById('tituloForm');
     
-    // 1. Mostrar as fotos na tela da forma nativa do aparelho
-    inputsFoto.forEach(input => {
+    // 1. Monta o visual do PDF convertendo as caixas do formulário em Texto Puro
+    let htmlImpressao = `
+      <h3 style="text-align: center; color: #0d6efd; margin-bottom: 20px;">RELATÓRIO DE INSPEÇÃO DIÁRIA</h3>
+      <div style="font-size: 16px;">
+        ${document.getElementById('conteudoRevisao').innerHTML}
+      </div>
+      <hr>
+      <h6 style="margin-top: 20px; font-weight: bold;">Registros Fotográficos (NÃO OK):</h6>
+      <div id="fotosImpressao" style="margin-top: 15px;"></div>
+    `;
+    
+    areaImpressao.innerHTML = htmlImpressao;
+    const containerFotos = document.getElementById('fotosImpressao');
+    const inputsFoto = document.querySelectorAll('.foto-input');
+    let qtdeFotos = 0;
+
+    // 2. Insere as fotos diretamente na área de impressão
+    inputsFoto.forEach((input, index) => {
       if (input.files && input.files[0]) {
-        // Esconde o botão de arquivo original para o PDF ficar mais limpo
-        input.style.display = 'none'; 
+        qtdeFotos++;
+        const nomeItem = document.querySelectorAll('.item-inspecao')[index].querySelector('p').innerText;
+        
+        let divFoto = document.createElement('div');
+        divFoto.style.marginBottom = '20px';
+        divFoto.innerHTML = `<p style="font-weight: bold; margin-bottom: 5px; color: #dc3545;">Item: ${nomeItem}</p>`;
         
         let imgDOM = document.createElement('img');
-        // Puxa a imagem diretamente do aparelho sem conversão pesada
-        imgDOM.src = URL.createObjectURL(input.files[0]); 
-        imgDOM.classList.add('foto-temporaria-pdf');
-        input.parentNode.appendChild(imgDOM);
+        imgDOM.src = URL.createObjectURL(input.files[0]);
+        imgDOM.style.maxWidth = '100%';
+        imgDOM.style.maxHeight = '350px';
+        imgDOM.style.borderRadius = '5px';
+        imgDOM.style.border = '1px solid #ccc';
+        
+        divFoto.appendChild(imgDOM);
+        containerFotos.appendChild(divFoto);
       }
     });
 
-    // 2. Aguarda um curto tempo para as imagens carregarem visualmente e chama a impressão do sistema
+    if(qtdeFotos === 0) {
+      containerFotos.innerHTML = "<p>Nenhuma foto anexada neste relatório.</p>";
+    }
+
+    // 3. O SEGREDO DO CELULAR: Esconde o formulário vazio via código e mostra apenas o texto puro
+    form.style.display = 'none';
+    titulo.style.display = 'none';
+    areaImpressao.style.display = 'block';
+
+    // 4. Aguarda as imagens carregarem totalmente na tela (1 segundo) e chama a impressão do celular
     setTimeout(() => {
       
-      // Abre a tela nativa de impressão/Salvar como PDF do celular
       window.print(); 
 
-      // 3. Limpeza e restauração da tela após a janela do PDF ser fechada
-      document.querySelectorAll('.foto-temporaria-pdf').forEach(img => img.remove());
+      // 5. Logo após fechar o PDF, esconde a área de texto e devolve o formulário novo
+      areaImpressao.style.display = 'none';
+      areaImpressao.innerHTML = '';
+      form.style.display = 'block';
+      titulo.style.display = 'block';
+      
       document.getElementById('checklistForm').reset();
       document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
       
+      const btn = document.getElementById('btnConfirmar');
       btn.innerText = 'Confirmar e Salvar';
       btn.disabled = false;
 
-      // 4. Pergunta do WhatsApp
+      // Pergunta do WhatsApp
       setTimeout(() => {
         const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
         const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
@@ -284,7 +318,7 @@
         }
       }, 1000);
 
-    }, 800);
+    }, 1000); // 1 segundo garantido para o celular processar as fotos
   }
 </script>
 </body>
