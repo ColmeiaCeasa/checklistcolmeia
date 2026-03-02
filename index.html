@@ -17,7 +17,9 @@
     @media print {
       body { background-color: white !important; padding: 0; }
       .card { box-shadow: none !important; border: none !important; padding: 0 !important; }
-      /* Esconde os botões e qualquer outra coisa na hora de gerar o PDF */
+      /* Esconde o formulário com defeito e mostra a área de texto puro */
+      #checklistForm, #tituloForm, #logoForm, #areaBotoesPrincipal, .modal { display: none !important; }
+      #areaImpressao { display: block !important; }
       .d-print-none { display: none !important; }
     }
   </style>
@@ -26,6 +28,11 @@
 
 <div class="container" id="conteudo-pdf">
   <div class="card p-4">
+    
+    <div class="text-center mb-3" id="logoForm">
+      <img src="logo.png" alt="Logo da Empresa" style="max-height: 90px; width: auto;" onerror="this.style.display='none'">
+    </div>
+
     <h3 class="text-center mb-4 text-primary" id="tituloForm">CHECK-LIST DIÁRIO</h3>
     
     <form id="checklistForm">
@@ -224,7 +231,6 @@
     .then(response => {
       modalRevisao.hide();
       
-      // Espera o modal sumir para montar o Relatório
       document.getElementById('modalRevisao').addEventListener('hidden.bs.modal', function onModalHidden() {
         gerarTelaRelatorio();
         document.getElementById('modalRevisao').removeEventListener('hidden.bs.modal', onModalHidden);
@@ -241,9 +247,13 @@
     const areaImpressao = document.getElementById('areaImpressao');
     const form = document.getElementById('checklistForm');
     const titulo = document.getElementById('tituloForm');
+    const logo = document.getElementById('logoForm');
     
-    // 1. Monta o visual do PDF convertendo as caixas do formulário em Texto Puro
+    // 1. Monta o visual do PDF incluindo a logo no cabeçalho
     let htmlImpressao = `
+      <div style="text-align: center; margin-bottom: 15px;">
+        <img src="logo.png" alt="Logo da Empresa" style="max-height: 80px; width: auto;" onerror="this.style.display='none'">
+      </div>
       <h3 style="text-align: center; color: #0d6efd; margin-bottom: 20px;">RELATÓRIO DE INSPEÇÃO DIÁRIA</h3>
       <div style="font-size: 16px;">
         ${document.getElementById('conteudoRevisao').innerHTML}
@@ -263,7 +273,6 @@
     const inputsFoto = document.querySelectorAll('.foto-input');
     let qtdeFotos = 0;
 
-    // 2. Insere as fotos diretamente na área de impressão
     inputsFoto.forEach((input, index) => {
       if (input.files && input.files[0]) {
         qtdeFotos++;
@@ -289,19 +298,16 @@
       containerFotos.innerHTML = "<p>Nenhuma foto anexada neste relatório.</p>";
     }
 
-    // 3. Esconde o formulário e mostra a TELA DE RELATÓRIO
+    // Esconde a tela inicial e mostra o relatório
     form.style.display = 'none';
     titulo.style.display = 'none';
+    logo.style.display = 'none'; // Esconde a logo da tela inicial para não duplicar com a do relatório
     areaImpressao.style.display = 'block';
 
-    // 4. Aguarda 1 segundo para a imagem carregar na tela e CHAMA A IMPRESSÃO. 
-    // Como a tela não vai ser limpa logo em seguida, o celular tem todo o tempo do mundo para gerar o PDF perfeito!
     setTimeout(() => {
       window.print(); 
     }, 1000); 
   }
-
-  // --- FUNÇÕES DOS NOVOS BOTÕES NA TELA DE RELATÓRIO ---
 
   function abrirWhatsApp() {
     const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
@@ -310,12 +316,12 @@
   }
 
   function voltarParaNovoPreenchimento() {
-    // Restaura a tela inicial limpa
     document.getElementById('areaImpressao').style.display = 'none';
     document.getElementById('areaImpressao').innerHTML = '';
     
     document.getElementById('checklistForm').style.display = 'block';
     document.getElementById('tituloForm').style.display = 'block';
+    document.getElementById('logoForm').style.display = 'block'; // Volta a logo original
     
     document.getElementById('checklistForm').reset();
     document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
