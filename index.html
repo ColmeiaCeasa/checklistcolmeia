@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Check-List de Veículos</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    body { background-color: #f4f7f6; padding: 20px; }
+    .card { border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .item-inspecao { border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px; }
+    .foto-input { display: none; margin-top: 10px; }
+  </style>
+</head>
+<body>
+
+<div class="container" id="conteudo-pdf">
+  <div class="card p-4">
+    <h3 class="text-center mb-4 text-primary">CHECK-LIST DIÁRIO DE VEÍCULOS</h3>
+    
+    <form id="checklistForm">
+      <div class="mb-3">
+        <label class="form-label fw-bold">Data e Horário</label>
+        <input type="text" id="dataHora" class="form-control" readonly>
+      </div>
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="form-label fw-bold">Motorista</label>
+          <select id="motorista" class="form-select" required><option value="">Carregando...</option></select>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label fw-bold">Modelo do Veículo</label>
+          <select id="veiculo" class="form-select" required><option value="">Carregando...</option></select>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label fw-bold">Placa</label>
+          <select id="placa" class="form-select" required><option value="">Carregando...</option></select>
+        </div>
+        <div class="col-md-6 mb-3">
+          <label class="form-label fw-bold">Kilometragem Atual</label>
+          <input type="number" id="km" class="form-control" placeholder="Ex: 15000" required>
+        </div>
+      </div>
+
+      <h5 class="mt-4 mb-3 text-secondary border-bottom pb-2">Itens Inspecionados</h5>
+      <div id="listaItens">
+        <p class="text-muted" id="statusCarregamento">Carregando itens da planilha...</p>
+      </div>
+
+      <div class="d-grid gap-2 mt-4">
+        <button type="button" class="btn btn-success btn-lg" onclick="salvarDados()" id="btnSalvar">Salvar no Sistema</button>
+        <button type="button" class="btn btn-danger" onclick="gerarPDF()">Gerar PDF e Baixar</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // =========================================================
+  // COLOQUE AQUI A URL GERADA NO GOOGLE APPS SCRIPT
+  // =========================================================
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz6hzDt-gk6PL_nhDeHKhUxf09DE8Mri43arAsJ4HSRiplgOHEggpP9ndD-V1pfmxUy/exec';
+
+  document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
+
+  // Busca os dados da planilha via Fetch API assim que a página abre
+  fetch(APPS_SCRIPT_URL)
+    .then(response => response.json())
+    .then(dados => popularFormulario(dados))
+    .catch(erro => {
+      document.getElementById('statusCarregamento').innerText = "Erro ao carregar dados. Verifique a URL.";
+      console.error(erro);
+    });
+
+  function popularFormulario(dados) {
+    const preencherSelect = (id, array) => {
+      const select = document.getElementById(id);
+      select.innerHTML = '<option value="">Selecione...</option>';
+      array.forEach(item => {
+        select.innerHTML += `<option value="${item}">${item}</option>`;
+      });
+    };
+
+    preencherSelect('motorista', dados.motoristas);
+    preencherSelect('veiculo', dados.veiculos);
+    preencherSelect('placa', dados.placas);
+
+    const listaItens = document.getElementById('listaItens');
+    listaItens.innerHTML = '';
+    dados.itens.forEach((item, index) => {
+      listaItens.innerHTML += `
+        <div class="item-inspecao" id="item_${index}">
+          <p class="fw-bold mb-1">${item}</p>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="status_${index}" value="OK" onchange="toggleFoto(${index}, false)" required>
+            <label class="form-check-label text-success">OK</label>
+          </div>
+          <div class="form-check form-check-inline">
+            <input class="form-check-input" type="radio" name="status_${index}" value="NÃO OK" onchange="toggleFoto(${index}, true)">
+            <label class="form-check-label text-danger">NÃO OK</label>
+          </div>
+          <input type="file" class="form-control foto-input" id="foto_${index}" accept="image/*" capture="environment">
+        </div>
+      `;
+    });
+  }
+
+  function toggleFoto(index, isNaoOk) {
+    const inputFoto = document.getElementById(`foto_${index}`);
+    if (isNaoOk) {
+      inputFoto.style.display = 'block';
+    } else {
+      inputFoto.style.display = 'none';
+      inputFoto.value = ''; 
+    }
+  }
+
+  function gerarPDF() {
+    const elemento = document.getElementById('conteudo-pdf');
+    const placa = document.getElementById('placa').value || 'Veiculo';
+    const opt = {
+      margin:       10,
+      filename:     `Checklist-${placa}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2 },
+      jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+    html2pdf().set(opt).from(elemento).save();
+  }
+
+  function salvarDados() {
+    const formulario = {
+      dataHora: document.getElementById('dataHora').value,
+      motorista: document.getElementById('motorista').value,
+      veiculo: document.getElementById('veiculo').value,
+      placa: document.getElementById('placa').value,
+      km: document.getElementById('km').value,
+      respostas: []
+    };
+
+    const itensDiv = document.querySelectorAll('.item-inspecao');
+    itensDiv.forEach((div, index) => {
+      const nomeItem = div.querySelector('p').innerText;
+      const statusCheck = div.querySelector(`input[name="status_${index}"]:checked`);
+      if(statusCheck) {
+        formulario.respostas.push({ item: nomeItem, status: statusCheck.value });
+      }
+    });
+
+    if(!formulario.motorista || !formulario.veiculo || !formulario.placa) {
+      alert("Por favor, preencha os dados principais!");
+      return;
+    }
+
+    const btn = document.getElementById('btnSalvar');
+    btn.innerText = 'Salvando...';
+    btn.disabled = true;
+
+    // Envia os dados para a planilha via POST
+    fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(formulario),
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8',
+      }
+    })
+    .then(response => response.json())
+    .then(retorno => {
+      alert(retorno.status);
+      document.getElementById('checklistForm').reset();
+      document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
+    })
+    .catch(erro => {
+      alert("Erro ao salvar: " + erro);
+    })
+    .finally(() => {
+      btn.innerText = 'Salvar no Sistema';
+      btn.disabled = false;
+    });
+  }
+</script>
+</body>
+</html>
