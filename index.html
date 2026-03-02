@@ -17,9 +17,8 @@
     @media print {
       body { background-color: white !important; padding: 0; }
       .card { box-shadow: none !important; border: none !important; padding: 0 !important; }
-      /* Esconde o formulário com defeito e mostra a área de texto puro */
-      #checklistForm, #tituloForm, #areaBotoesPrincipal, .modal { display: none !important; }
-      #areaImpressao { display: block !important; }
+      /* Esconde os botões e qualquer outra coisa na hora de gerar o PDF */
+      .d-print-none { display: none !important; }
     }
   </style>
 </head>
@@ -225,20 +224,20 @@
     .then(response => {
       modalRevisao.hide();
       
-      // Espera o modal sumir para montar o PDF garantido
+      // Espera o modal sumir para montar o Relatório
       document.getElementById('modalRevisao').addEventListener('hidden.bs.modal', function onModalHidden() {
-        gerarECompartilharPDF();
+        gerarTelaRelatorio();
         document.getElementById('modalRevisao').removeEventListener('hidden.bs.modal', onModalHidden);
       });
     })
     .catch(erro => {
       console.error(erro);
       modalRevisao.hide();
-      setTimeout(gerarECompartilharPDF, 600); 
+      setTimeout(gerarTelaRelatorio, 600); 
     });
   }
 
-  function gerarECompartilharPDF() {
+  function gerarTelaRelatorio() {
     const areaImpressao = document.getElementById('areaImpressao');
     const form = document.getElementById('checklistForm');
     const titulo = document.getElementById('tituloForm');
@@ -252,6 +251,11 @@
       <hr>
       <h6 style="margin-top: 20px; font-weight: bold;">Registros Fotográficos (NÃO OK):</h6>
       <div id="fotosImpressao" style="margin-top: 15px;"></div>
+      
+      <div class="d-grid gap-2 mt-5 d-print-none border-top pt-4">
+        <button class="btn btn-success btn-lg" onclick="abrirWhatsApp()">📲 1. Enviar Relatório no WhatsApp</button>
+        <button class="btn btn-secondary" onclick="voltarParaNovoPreenchimento()">🔄 2. Limpar e Fazer Nova Inspeção</button>
+      </div>
     `;
     
     areaImpressao.innerHTML = htmlImpressao;
@@ -285,40 +289,40 @@
       containerFotos.innerHTML = "<p>Nenhuma foto anexada neste relatório.</p>";
     }
 
-    // 3. O SEGREDO DO CELULAR: Esconde o formulário vazio via código e mostra apenas o texto puro
+    // 3. Esconde o formulário e mostra a TELA DE RELATÓRIO
     form.style.display = 'none';
     titulo.style.display = 'none';
     areaImpressao.style.display = 'block';
 
-    // 4. Aguarda as imagens carregarem totalmente na tela (1 segundo) e chama a impressão do celular
+    // 4. Aguarda 1 segundo para a imagem carregar na tela e CHAMA A IMPRESSÃO. 
+    // Como a tela não vai ser limpa logo em seguida, o celular tem todo o tempo do mundo para gerar o PDF perfeito!
     setTimeout(() => {
-      
       window.print(); 
+    }, 1000); 
+  }
 
-      // 5. Logo após fechar o PDF, esconde a área de texto e devolve o formulário novo
-      areaImpressao.style.display = 'none';
-      areaImpressao.innerHTML = '';
-      form.style.display = 'block';
-      titulo.style.display = 'block';
-      
-      document.getElementById('checklistForm').reset();
-      document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
-      
-      const btn = document.getElementById('btnConfirmar');
-      btn.innerText = 'Confirmar e Salvar';
-      btn.disabled = false;
+  // --- FUNÇÕES DOS NOVOS BOTÕES NA TELA DE RELATÓRIO ---
 
-      // Pergunta do WhatsApp
-      setTimeout(() => {
-        const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
-        const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
-        
-        if(confirm("✅ Se você já salvou o PDF no aparelho, deseja abrir o WhatsApp agora para anexar e enviar o relatório?")) {
-          window.open(zapUrl, '_blank');
-        }
-      }, 1000);
+  function abrirWhatsApp() {
+    const mensagem = `Olá! Segue o checklist diário preenchido.\n*Veículo:* ${dadosFormularioAtual.veiculo}\n*Placa:* ${dadosFormularioAtual.placa}\n*Motorista:* ${dadosFormularioAtual.motorista}`;
+    const zapUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(mensagem)}`;
+    window.open(zapUrl, '_blank');
+  }
 
-    }, 1000); // 1 segundo garantido para o celular processar as fotos
+  function voltarParaNovoPreenchimento() {
+    // Restaura a tela inicial limpa
+    document.getElementById('areaImpressao').style.display = 'none';
+    document.getElementById('areaImpressao').innerHTML = '';
+    
+    document.getElementById('checklistForm').style.display = 'block';
+    document.getElementById('tituloForm').style.display = 'block';
+    
+    document.getElementById('checklistForm').reset();
+    document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
+    
+    const btn = document.getElementById('btnConfirmar');
+    btn.innerText = 'Confirmar e Salvar';
+    btn.disabled = false;
   }
 </script>
 </body>
