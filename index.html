@@ -140,18 +140,18 @@
     const listaItens = document.getElementById('listaItens');
     listaItens.innerHTML = '';
     dados.itens.forEach((item, index) => {
-      // NOVA INTERFACE COM BOTÕES AO LADO DO NOME
+      // INTERFACE ATUALIZADA COM BOTÕES SEPARADOS E DE TAMANHOS IGUAIS
       listaItens.innerHTML += `
         <div class="item-inspecao" id="item_${index}">
-          <div class="d-flex justify-content-between align-items-center">
-            <p class="fw-bold mb-0">${item}</p>
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <p class="fw-bold mb-0" style="flex: 1; padding-right: 10px;">${item}</p>
             
-            <div class="btn-group" role="group">
+            <div class="d-flex gap-2">
               <input type="radio" class="btn-check" name="status_${index}" id="btn-ok-${index}" value="OK" onchange="toggleFoto(${index}, false)" autocomplete="off">
-              <label class="btn btn-outline-success btn-sm fw-bold px-3" for="btn-ok-${index}">OK</label>
+              <label class="btn btn-outline-success btn-sm fw-bold" style="width: 90px; text-align: center;" for="btn-ok-${index}">OK</label>
 
               <input type="radio" class="btn-check" name="status_${index}" id="btn-nok-${index}" value="NÃO OK" onchange="toggleFoto(${index}, true)" autocomplete="off">
-              <label class="btn btn-outline-danger btn-sm fw-bold px-3" for="btn-nok-${index}">NÃO OK</label>
+              <label class="btn btn-outline-danger btn-sm fw-bold" style="width: 90px; text-align: center;" for="btn-nok-${index}">NÃO OK</label>
             </div>
           </div>
 
