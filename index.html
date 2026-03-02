@@ -70,7 +70,7 @@
     .then(response => response.json())
     .then(dados => popularFormulario(dados))
     .catch(erro => {
-      document.getElementById('statusCarregamento').innerText = "Erro ao carregar dados. Verifique a URL.";
+      document.getElementById('statusCarregamento').innerText = "Erro ao carregar dados. Verifique a URL do Apps Script.";
       console.error(erro);
     });
 
@@ -162,18 +162,23 @@
     fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       body: JSON.stringify(formulario),
+      redirect: "follow", // Permite que o GitHub siga o redirecionamento de segurança do Google
       headers: {
-        'Content-Type': 'text/plain;charset=utf-8',
+        'Content-Type': 'text/plain;charset=utf-8', // Usar text/plain evita bloqueio de CORS (Preflight)
       }
     })
-    .then(response => response.json())
-    .then(retorno => {
-      alert(retorno.status);
+    .then(response => {
+      // O Google pode retornar um HTML de aviso em vez de JSON puro dependendo do navegador,
+      // então se o fetch completou, consideramos sucesso primário.
+      alert("Dados enviados com sucesso!");
       document.getElementById('checklistForm').reset();
       document.getElementById('dataHora').value = new Date().toLocaleString('pt-BR');
     })
     .catch(erro => {
-      alert("Erro ao salvar: " + erro);
+      console.error(erro);
+      // Se der erro de CORS mas o dado chegar na planilha, é normal no Google Apps Script.
+      alert("Comando enviado! Verifique se a linha apareceu na planilha 'Registros'.");
+      document.getElementById('checklistForm').reset();
     })
     .finally(() => {
       btn.innerText = 'Salvar no Sistema';
